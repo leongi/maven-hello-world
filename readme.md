@@ -159,7 +159,7 @@ Add these in *Settings → Secrets and variables → Actions*:
 
 Every push to `master` runs [`.github/workflows/cicd.yml`](.github/workflows/cicd.yml):
 
-1. `version`: increases the patch number in [`myapp/version`](myapp/version) (`1.0.0 → 1.0.1`) and commits it
+1. `version`: increases the patch number of the version in [`myapp/pom.xml`](myapp/pom.xml) (`1.0.0 → 1.0.1`) and commits it
 2. `maven`: builds the jar and uploads it as a build artifact
 3. `docker`: builds the image with the multi-stage [`Dockerfile`](Dockerfile) (non-root user) and pushes it to Docker Hub, tagged with the version and `latest`
 4. `deploy`: runs the image, then deploys the Helm chart to a kind cluster

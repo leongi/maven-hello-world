@@ -28,9 +28,11 @@ jobs:
       - name: Increase patch version and commit it
         id: bump
         run: |
-          IFS=. read -r MAJOR MINOR PATCH < myapp/version
+          cd myapp
+          CURRENT=$(mvn -B -q help:evaluate -Dexpression=project.version -DforceStdout)
+          IFS=. read -r MAJOR MINOR PATCH <<< "$CURRENT"
           VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
-          echo "$VERSION" > myapp/version
+          mvn -B -q versions:set -DnewVersion="$VERSION" -DgenerateBackupPoms=false
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -am "ci: bump version to $VERSION [skip ci]"
@@ -56,7 +58,7 @@ jobs:
           cache: maven
 
       - name: Compile & package jar
-        run: mvn -B package -Drevision="$VERSION" -f myapp/pom.xml
+        run: mvn -B package -f myapp/pom.xml
 
       - uses: actions/upload-artifact@v5
         with:
