@@ -1,0 +1,3 @@
+The hello-world Job has been started. Read its output with:
+
+  kubectl logs -n {{ .Release.Namespace }} job/{{ .Release.Name }}-{{ .Release.Revision }}

@@ -1,0 +1,5 @@
+apiVersion: v2
+name: maven-hello-world
+description: Runs the maven-hello-world jar as a Kubernetes Job
+type: application
+version: 0.1.0

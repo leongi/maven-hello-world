@@ -1,0 +1,107 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [master]
+    paths-ignore: ["**.md"]
+  workflow_dispatch:
+
+permissions:
+  contents: write # push the version-bump commit
+
+# One run at a time, so two runs never pick the same version
+concurrency: ci-cd
+
+env:
+  IMAGE: ${{ vars.DOCKERHUB_USERNAME }}/maven-hello-world
+
+jobs:
+  # 1. Bump the version first, so both builds below use the same version
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+      sha: ${{ steps.bump.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Increase patch version and commit it
+        id: bump
+        run: |
+          IFS=. read -r MAJOR MINOR PATCH < myapp/version
+          VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
+          echo "$VERSION" > myapp/version
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "ci: bump version to $VERSION [skip ci]"
+          git push
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  # 2a. Plain Maven build -> build artifact
+  maven:
+    needs: version
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Compile & package jar
+        run: mvn -B package -Drevision="$VERSION" -f myapp/pom.xml
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: myapp-${{ env.VERSION }}
+          path: myapp/target/myapp-*.jar
+
+  # 2b. Multi-stage Docker build -> image on Docker Hub (runs in parallel with maven)
+  docker:
+    needs: version
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build & push image
+        run: |
+          docker build -t "$IMAGE:$VERSION" -t "$IMAGE:latest" .
+          docker push --all-tags "$IMAGE"
+
+  # 3. Download & run the image, then deploy it with Helm
+  deploy:
+    needs: [version, docker]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download & run image from Docker Hub
+        run: docker run --rm "$IMAGE:$VERSION"
+
+      - name: Create Kubernetes (kind) cluster
+        uses: helm/kind-action@v1
+
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install hello helm/maven-hello-world \
+            --set image.repository="$IMAGE" --set image.tag="$VERSION" \
+            --wait --wait-for-jobs --timeout 5m
+          kubectl logs job/hello-1

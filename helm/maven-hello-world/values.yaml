@@ -1,0 +1,4 @@
+image:
+  repository: leogit/maven-hello-world
+  tag: latest
+  pullPolicy: Always

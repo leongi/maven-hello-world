@@ -145,3 +145,38 @@ The Maven’s jar plugin will create jar file and we need to define the main cla
                 └── app
                     └── AppTest.class
 ```
+
+# Installation
+
+Requirements: Docker. For Kubernetes also `kubectl`, Helm and a cluster (Docker Desktop, kind or minikube).
+
+## CI/CD (GitHub Actions)
+
+Add these in *Settings → Secrets and variables → Actions*:
+
+- variable `DOCKERHUB_USERNAME`: your Docker Hub user
+- secret `DOCKERHUB_TOKEN`: a Docker Hub access token with *Read & Write* access
+
+Every push to `master` runs [`.github/workflows/cicd.yml`](.github/workflows/cicd.yml):
+
+1. `version`: increases the patch number in [`myapp/version`](myapp/version) (`1.0.0 → 1.0.1`) and commits it
+2. `maven`: builds the jar and uploads it as a build artifact
+3. `docker`: builds the image with the multi-stage [`Dockerfile`](Dockerfile) (non-root user) and pushes it to Docker Hub, tagged with the version and `latest`
+4. `deploy`: runs the image, then deploys the Helm chart to a kind cluster
+
+## Run with Docker
+
+    docker run --rm leogit/maven-hello-world:latest
+
+## Deploy with Helm
+
+The app prints a message and exits, so the chart runs it as a Kubernetes Job.
+
+    helm upgrade --install hello ./helm/maven-hello-world --wait --wait-for-jobs
+    kubectl logs -l app=hello
+    helm uninstall hello
+
+## Build locally
+
+    docker build -t maven-hello-world .
+    docker run --rm maven-hello-world

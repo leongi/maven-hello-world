@@ -9,12 +9,9 @@ import org.junit.Test;
  */
 public class AppTest 
 {
-    /**
-     * Rigorous Test :-)
-     */
     @Test
-    public void shouldAnswerWithTrue()
+    public void messageContainsName()
     {
-        assertTrue( true );
+        assertTrue( App.MESSAGE.contains( "Leon" ) );
     }
 }
